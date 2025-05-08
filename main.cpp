@@ -1,12 +1,12 @@
 #include <AFMotor.h>
 #include <Servo.h>
 
-#define LEFT 0
-#define BACK 1
-#define RIGHT 2
 #define TRIG_PIN 2
 #define ECHO_PIN 13
 #define SERVO_PIN 10
+#define LEFT 0
+#define BACK 1
+#define RIGHT 2
 
 AF_DCMotor RR(1);
 AF_DCMotor FR(2);
@@ -14,20 +14,21 @@ AF_DCMotor FL(3);
 AF_DCMotor RL(4);
 Servo servo;
 
-byte maxDist = 150;
-byte stopDist = 50;
-byte pauseDist = 40;
-unsigned long timeout = 2 * (maxDist + 10) / 100 / 340 * 1000000;
+uint8_t maxDist = 200;
+uint8_t stopDist = 40;
+uint8_t pauseDist = 30;
+// timeout = 2 * (maxDist + 10) / 100 / 340 * 1000000 = (maxDist + 10) * 58.82
+uint16_t timeout = (maxDist + 10) * 59;
 
-byte motorSpeed = 80;
-byte launchSpeed = 120;
-byte turnSpeed = 160;
-unsigned long turnRate = 650;
+uint8_t motorSpeed = 80;
+uint8_t launchSpeed = 120;
+uint8_t turnSpeed = 160;
+uint16_t turnTime = 650;
 
-byte offsetRL = 15;
-byte offsetFL = 15;
-byte offsetRR = -15;
-byte offsetFR = -15;
+uint8_t offsetRL = 15;
+uint8_t offsetFL = 15;
+uint8_t offsetRR = 0;
+uint8_t offsetFR = 0;
 
 /*
 TODO:
@@ -52,22 +53,26 @@ void setup() {
 void loop() {
   servo.write(90);
   delay(500);
-  int distance = getDistance();
-  byte counter = 0;
+  uint16_t distance = getDistance();
+  uint8_t counter = 0;
 
   if (distance >= stopDist)
     accelerate();
-    // moveForward();
 
   while (distance >= stopDist) {
     if (counter >= 4) {
-      servo.write(50);
+      servo.write(130);
       delay(200);
       distance = getDistance();
       if (distance < pauseDist) break;
 
-      servo.write(130);
-      delay(400);
+      servo.write(90);
+      delay(200);
+      distance = getDistance();
+      if (distance < pauseDist) break;
+
+      servo.write(50);
+      delay(200);
       distance = getDistance();
       if (distance < pauseDist) break;
 
@@ -83,18 +88,18 @@ void loop() {
 
   stop();
 
-  int turnDir = getDirection();
+  uint8_t turnDir = getDirection();
   Serial.println(turnDir);
 
   switch (turnDir) {
     case LEFT:
-      turnLeft(turnRate);
+      turn(LEFT, turnTime);
       break;
     case RIGHT:
-      turnRight(turnRate);
+      turn(RIGHT, turnTime);
       break;
     case BACK:
-      turnLeft(turnRate * 2);
+      turn(LEFT, turnTime * 2);
       break;
   }
 }
@@ -121,23 +126,6 @@ void accelerate() {
   }
 }
 
-// void decelerate() {
-//   for (int i = motorSpeed; i > 0; i--) {
-//     RL.setSpeed(i);
-//     FL.setSpeed(i);
-//     RR.setSpeed(i);
-//     FR.setSpeed(i);
-//     delay(10);
-//   }
-// }
-
-// void moveForward() {
-//   RL.run(FORWARD);
-//   FL.run(FORWARD);
-//   RR.run(FORWARD);
-//   FR.run(FORWARD);
-// }
-
 void stop() {
   RL.run(RELEASE);
   FL.run(RELEASE);
@@ -145,16 +133,26 @@ void stop() {
   FR.run(RELEASE);
 }
 
-void turnLeft(unsigned long duration) {
+void turn(uint8_t direction, uint16_t duration) {
   RL.setSpeed(turnSpeed + offsetRL);
   FL.setSpeed(turnSpeed + offsetFL);
   RR.setSpeed(turnSpeed + offsetRR);
   FR.setSpeed(turnSpeed + offsetFR);
 
-  RL.run(BACKWARD);
-  FL.run(BACKWARD);
-  RR.run(FORWARD);
-  FR.run(FORWARD);
+  switch (direction) {
+    case RIGHT:
+      RL.run(FORWARD);
+      FL.run(FORWARD);
+      RR.run(BACKWARD);
+      FR.run(BACKWARD);
+      break;
+    default:
+      RL.run(BACKWARD);
+      FL.run(BACKWARD);
+      RR.run(FORWARD);
+      FR.run(FORWARD);
+      break;
+  }
 
   delay(duration);
 
@@ -164,75 +162,44 @@ void turnLeft(unsigned long duration) {
   FR.run(RELEASE);
 }
 
-void turnRight(unsigned long duration) {
-  RL.setSpeed(turnSpeed + offsetRL);
-  FL.setSpeed(turnSpeed + offsetFL);
-  RR.setSpeed(turnSpeed + offsetRR);
-  FR.setSpeed(turnSpeed + offsetFR);
-
-  RL.run(FORWARD);
-  FL.run(FORWARD);
-  RR.run(BACKWARD);
-  FR.run(BACKWARD);
-
-  delay(duration);
-
-  RL.run(RELEASE);
-  FL.run(RELEASE);
-  RR.run(RELEASE);
-  FR.run(RELEASE);
-}
-
-// void reverse1(unsigned long duration) {
-//   RL.run(BACKWARD);
-//   FL.run(BACKWARD);
-//   RR.run(BACKWARD);
-//   RL.run(BACKWARD);
-
-//   delay(duration);
-
-//   RL.run(RELEASE);
-//   FL.run(RELEASE);
-//   RR.run(RELEASE);
-//   FR.run(RELEASE);
-// }
-
-int getDistance() {
-  unsigned long pingTime;
-  int distance;
+uint16_t getDistance() {
+  uint32_t pingTime;
+  uint16_t distance;
 
   digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
 
-  pingTime = pulseIn(ECHO_PIN, HIGH, timeout);
+  pingTime = pulseIn(ECHO_PIN, HIGH);
   
-  distance = pingTime * 340 / 10000 / 2;
+  // distance = pingTime * 340 * 100 / 1000000 / 2 = pingTime * 0.017
+  distance = pingTime * 0.017;
   Serial.println(distance);
   
   return distance;
 }
 
-int getDirection() {
-  int distances[2];
-  int turnDir;
+uint8_t getDirection() {
+  uint16_t distanceL, distanceR;
+  uint8_t turnDir;
 
   servo.write(180);
   delay(500);
-  distances[0] = getDistance();
+  distanceL = getDistance();
   
   servo.write(0);
   delay(1000);
-  distances[1] = getDistance();
+  distanceR = getDistance();
 
-  if (distances[0] >= maxDist && distances[1] >= maxDist)
+  if (distanceL >= maxDist && distanceR >= maxDist)
     turnDir = LEFT;
-  else if (distances[0] <= stopDist && distances[1] <= stopDist)
+  else if (distanceL <= stopDist && distanceR <= stopDist)
     turnDir = BACK;
-  else if (distances[0] >= distances[1])
+  else if (distanceL >= distanceR)
     turnDir = LEFT;
-  else if (distances[0] < distances[1])
+  else
     turnDir = RIGHT;
 
   return turnDir;
 }
+

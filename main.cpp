@@ -10,6 +10,7 @@
 #define RIGHT 2
 #define NONE 3
 
+void look(uint8_t degrees, bool wait = true);
 uint8_t getDirection(uint8_t priority = NONE);
 
 AF_DCMotor RR(1);
@@ -18,7 +19,8 @@ AF_DCMotor FL(3);
 AF_DCMotor RL(4);
 Servo servo;
 
-uint8_t lastServoRotation;
+uint8_t lastServoRotation = 180;
+uint8_t lookInterval = 4;
 
 uint8_t maxDist = 200;
 uint8_t stopDist = 40;
@@ -27,13 +29,13 @@ uint8_t sideDist = 30;
 uint16_t timeout = (maxDist + 10) * 59;
 
 uint8_t motorSpeed = 80;
-uint8_t slowSpeed = 60;
+uint8_t slowSpeed = 70;
 uint8_t launchSpeed = 120;
 uint8_t turnSpeed = 160;
 uint16_t turnTime = 600;
 
-uint8_t offsetRL = 20;
-uint8_t offsetFL = 20;
+uint8_t offsetRL = 15;
+uint8_t offsetFL = 15;
 uint8_t offsetRR = 0;
 uint8_t offsetFR = 0;
 
@@ -58,9 +60,7 @@ void setup() {
 }
 
 void loop() {
-  servo.write(90);
-  delay(500);
-  lastServoRotation = 90;
+  look(90);
 
   uint8_t counter = 0;
   uint8_t priority = NONE;
@@ -70,26 +70,22 @@ void loop() {
     changeSpeed(launchSpeed, motorSpeed);
 
   while (distance >= stopDist) {
-    if (counter >= 5) {
+    if (counter >= lookInterval) {
       changeSpeed(motorSpeed, slowSpeed);
 
       if (checkSide(130)) {
         priority = RIGHT;
         break;
       }
-      // if (checkSide(90, 250)) {
-      //   priority = LEFT;
+      // if (checkSide(90))
       //   break;
-      //}
       if (checkSide(50)) {
         priority = LEFT;
         break;
       }
 
       counter = 0;
-      servo.write(90);
-      lastServoRotation = 90;
-
+      look(90, false);
       changeSpeed(slowSpeed, motorSpeed);
     } else {
       delay(200);
@@ -173,17 +169,6 @@ void turn(uint8_t direction, uint16_t duration) {
   FR.run(RELEASE);
 }
 
-bool checkSide(uint8_t degrees) {
-  uint8_t degreeChange = abs(lastServoRotation - degrees);
-  lastServoRotation = degrees;
-
-  servo.write(degrees);
-  delay(degreeChange * 6);
-  uint16_t distance = getDistance();
-
-  return distance < sideDist;
-}
-
 uint16_t getDistance() {
   uint32_t pingTime;
   uint16_t distance;
@@ -192,7 +177,7 @@ uint16_t getDistance() {
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
 
-  pingTime = pulseIn(ECHO_PIN, HIGH, timeout);
+  pingTime = pulseIn(ECHO_PIN, HIGH);
   
   // distance = pingTime * 340 * 100 / 1000000 / 2 = pingTime * 0.017
   distance = pingTime * 0.017;
@@ -202,21 +187,33 @@ uint16_t getDistance() {
   return distance;
 }
 
+void look(uint8_t degrees, bool wait = true) {
+  servo.write(degrees);
+  uint8_t degreeChange = abs(lastServoRotation - degrees);
+  lastServoRotation = degrees;
+
+  if (!wait) return;
+  delay(degreeChange * 6);
+}
+
+bool checkSide(uint8_t degrees) {
+  look(degrees);
+  uint16_t distance = getDistance();
+
+  return distance < sideDist;
+}
+
 uint8_t getDirection(uint8_t priority = NONE) {
   uint16_t distances[2] = {0, 0};
   uint8_t turnDir;
 
   if (priority == LEFT || priority == NONE) {
-    servo.write(180);
-    delay(abs(lastServoRotation - 180) * 6);
-    lastServoRotation = 180;
+    look(180);
     distances[0] = getDistance();
   }
   
   if (priority == RIGHT || priority == NONE) {
-    servo.write(0);
-    delay(lastServoRotation * 6);
-    lastServoRotation = 180;
+    look(0);
     distances[1] = getDistance();
   }
 

@@ -22,17 +22,17 @@ Servo servo;
 uint8_t lastServoRotation = 180;
 uint8_t lookInterval = 4;
 
-uint8_t maxDist = 200;
+uint8_t maxDist = 150;
 uint8_t stopDist = 40;
 uint8_t sideDist = 30;
 // timeout = 2 * (maxDist + 10) / 100 / 340 * 1000000 = (maxDist + 10) * 58.82
 uint16_t timeout = (maxDist + 10) * 59;
 
+uint8_t launchSpeed = 120;
 uint8_t motorSpeed = 80;
 uint8_t slowSpeed = 70;
-uint8_t launchSpeed = 120;
 uint8_t turnSpeed = 160;
-uint16_t turnTime = 600;
+uint16_t turnTime = 500;
 
 uint8_t offsetRL = 15;
 uint8_t offsetFL = 15;
@@ -66,19 +66,17 @@ void loop() {
   uint8_t priority = NONE;
   uint16_t distance = getDistance();
 
-  if (distance >= stopDist)
-    changeSpeed(launchSpeed, motorSpeed);
+  if (distance > stopDist)
+    changeSpeed(launchSpeed, motorSpeed, 10);
 
-  while (distance >= stopDist) {
+  while (distance > stopDist) {
     if (counter >= lookInterval) {
-      changeSpeed(motorSpeed, slowSpeed);
+      changeSpeed(motorSpeed, slowSpeed, 15);
 
       if (checkSide(130)) {
         priority = RIGHT;
         break;
       }
-      // if (checkSide(90))
-      //   break;
       if (checkSide(50)) {
         priority = LEFT;
         break;
@@ -86,35 +84,40 @@ void loop() {
 
       counter = 0;
       look(90, false);
-      changeSpeed(slowSpeed, motorSpeed);
+      changeSpeed(slowSpeed, motorSpeed, 15);
     } else {
       delay(200);
     }
-      
+
     distance = getDistance();
     counter++;
   }
 
   stop();
 
-  uint8_t turnDir = getDirection(priority);
-  Serial.print("turn = ");
-  Serial.println(turnDir);
+  bool freeToGo = false;
+  while (!freeToGo) {
+    uint8_t turnDir = getDirection(priority);
+    Serial.print("turn = ");
+    Serial.println(turnDir);
 
-  switch (turnDir) {
-    case LEFT:
-      turn(LEFT, turnTime);
-      break;
-    case RIGHT:
-      turn(RIGHT, turnTime);
-      break;
-    case BACK:
-      turn(LEFT, turnTime * 2);
-      break;
+    switch (turnDir) {
+      case LEFT:
+        turn(LEFT, turnTime);
+        freeToGo = !checkSide(50);
+        break;
+      case RIGHT:
+        turn(RIGHT, turnTime);
+        freeToGo = !checkSide(130);
+        break;
+      case BACK:
+        turn(LEFT, turnTime * 2);
+        break;
+    }
   }
 }
 
-void changeSpeed(uint8_t initial, uint8_t target) {
+void changeSpeed(uint8_t initial, uint8_t target, uint16_t duration) {
   if (initial == target) return;
   uint8_t step = (target > initial) ? 1 : -1;
 
@@ -129,7 +132,7 @@ void changeSpeed(uint8_t initial, uint8_t target) {
     RR.run(FORWARD);
     FR.run(FORWARD);
 
-    delay(10);
+    delay(duration);
   }
 }
 

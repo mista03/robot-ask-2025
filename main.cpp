@@ -112,6 +112,7 @@ void loop() {
         break;
       case BACK:
         turn(LEFT, turnTime * 2);
+        freeToGo = true;
         break;
     }
   }

@@ -41,17 +41,6 @@ void setup() {
   pinMode(ECHO_PIN, INPUT);
 
   look(90);
-
-  // float sum; 
-  // uint8_t i = 0;
-  // while (i < 3) {
-  //   sum += getDistance();
-  //   i++;
-  //   delay(100);
-  // }
-  // compareDist = min(sum / i, maxDist);
-  // Serial.print("comp = ");
-  // Serial.println(compareDist);
 }
 
 void loop() {
